@@ -1,0 +1,16 @@
+{
+  "name": "web-temp-mail",
+  "version": "1.0.0",
+  "description": "Temporary email service with custom Cloudflare domain and Gmail API",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step needed'",
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "googleapis": "^131.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
