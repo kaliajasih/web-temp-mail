@@ -1,4 +1,4 @@
-const { createEmailRoute } = require('./_lib/cloudflare');
+const { createEmailRoute, deleteEmailRoute } = require('./_lib/cloudflare');
 
 const adjectives = [
     'cool', 'fast', 'dark', 'wild', 'epic', 'mega', 'neo', 'pro', 'ultra', 'zen',
@@ -18,6 +18,19 @@ module.exports = async function handler(req, res) {
     }
 
     const domain = process.env.EMAIL_DOMAIN || 'yourdomain.com';
+    const { oldRouteId } = req.query;
+
+    // Delete the old email route if provided
+    if (oldRouteId) {
+        try {
+            await deleteEmailRoute(oldRouteId);
+            console.log(`🗑️ Deleted old Cloudflare route: ${oldRouteId}`);
+        } catch (err) {
+            // Don't block new creation if old deletion fails
+            console.warn(`⚠️ Failed to delete old route ${oldRouteId}:`, err.message);
+        }
+    }
+
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
     const noun = nouns[Math.floor(Math.random() * nouns.length)];
     const num = Math.floor(Math.random() * 9000) + 1000;

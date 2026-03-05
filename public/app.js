@@ -7,6 +7,7 @@
 
     // ===== State =====
     let currentEmail = null;
+    let currentRouteId = null;
     let refreshInterval = null;
     let countdownInterval = null;
     let countdown = 5;
@@ -54,13 +55,20 @@
         btnGenerate.classList.add('loading');
         btnGenerate.disabled = true;
 
-        const data = await apiCall('/api/generate');
+        // Pass old route ID so backend can delete it from Cloudflare
+        let url = '/api/generate';
+        if (currentRouteId) {
+            url += `?oldRouteId=${encodeURIComponent(currentRouteId)}`;
+        }
+
+        const data = await apiCall(url);
 
         btnGenerate.classList.remove('loading');
         btnGenerate.disabled = false;
 
         if (data.success) {
             currentEmail = data.email;
+            currentRouteId = data.routeId;
 
             // Update UI
             emailPlaceholder.style.display = 'none';
@@ -392,8 +400,10 @@
     // ===== Restored Session =====
     // Check if there's a stored email from localStorage
     const savedEmail = localStorage.getItem('tempmail_current');
+    const savedRouteId = localStorage.getItem('tempmail_routeId');
     if (savedEmail) {
         currentEmail = savedEmail;
+        currentRouteId = savedRouteId;
         emailPlaceholder.style.display = 'none';
         emailAddress.style.display = 'flex';
         emailText.textContent = currentEmail;
@@ -404,12 +414,13 @@
         fetchInbox();
     }
 
-    // Save email to localStorage when generated
-    const origGenerate = generateEmail;
-    // We use a proxy approach to store the email
+    // Save email & routeId to localStorage when generated
     const observer = new MutationObserver(() => {
         if (currentEmail) {
             localStorage.setItem('tempmail_current', currentEmail);
+            if (currentRouteId) {
+                localStorage.setItem('tempmail_routeId', currentRouteId);
+            }
         }
     });
     observer.observe(emailText, { childList: true, characterData: true, subtree: true });
