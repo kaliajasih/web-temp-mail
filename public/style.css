@@ -130,20 +130,49 @@ body {
 }
 
 @keyframes orbFloat1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-80px, 60px) scale(1.1); }
-  66% { transform: translate(40px, -40px) scale(0.9); }
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(-80px, 60px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(40px, -40px) scale(0.9);
+  }
 }
 
 @keyframes orbFloat2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(60px, -80px) scale(1.15); }
-  66% { transform: translate(-40px, 40px) scale(0.85); }
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(60px, -80px) scale(1.15);
+  }
+
+  66% {
+    transform: translate(-40px, 40px) scale(0.85);
+  }
 }
 
 @keyframes orbFloat3 {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.1; }
-  50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
+
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.1;
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 0.2;
+  }
 }
 
 /* ========================================
@@ -267,8 +296,17 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 206, 201, 0.5); }
-  50% { opacity: 0.7; box-shadow: 0 0 0 8px rgba(0, 206, 201, 0); }
+
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(0, 206, 201, 0.5);
+  }
+
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 8px rgba(0, 206, 201, 0);
+  }
 }
 
 .email-display {
@@ -396,6 +434,46 @@ body {
   animation: spin 1s linear infinite;
 }
 
+.generator-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-delete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-delete:hover {
+  background: rgba(255, 107, 107, 0.15);
+  border-color: rgba(255, 107, 107, 0.4);
+  box-shadow: 0 4px 20px rgba(255, 107, 107, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-delete:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .timer-info {
   display: flex;
   align-items: center;
@@ -496,8 +574,15 @@ body {
 }
 
 @keyframes floatSlow {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .inbox-empty h3 {
@@ -645,6 +730,7 @@ body {
     opacity: 0;
     transform: translateY(20px) scale(0.97);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -766,7 +852,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ========================================
@@ -789,8 +877,13 @@ body {
    Animations
    ======================================== */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes fadeInUp {
@@ -798,6 +891,7 @@ body {
     opacity: 0;
     transform: translateY(16px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -809,6 +903,7 @@ body {
     opacity: 0;
     transform: translateY(-16px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -863,6 +958,16 @@ body {
   .btn-generate {
     width: 100%;
     justify-content: center;
+  }
+
+  .btn-delete {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .generator-buttons {
+    width: 100%;
+    flex-direction: column;
   }
 
   .generator-actions {

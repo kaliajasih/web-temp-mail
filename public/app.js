@@ -20,6 +20,7 @@
     const btnGenerate = $('#btnGenerate');
     const btnCopy = $('#btnCopy');
     const copyFeedback = $('#copyFeedback');
+    const btnDelete = $('#btnDelete');
     const timerInfo = $('#timerInfo');
     const timerText = $('#timerText');
     const generatorCard = $('#generatorCard');
@@ -50,53 +51,8 @@
         }
     }
 
-    // ===== Generate Email =====
-    async function generateEmail() {
-        btnGenerate.classList.add('loading');
-        btnGenerate.disabled = true;
-
-        // Pass old route ID so backend can delete it from Cloudflare
-        let url = '/api/generate';
-        if (currentRouteId) {
-            url += `?oldRouteId=${encodeURIComponent(currentRouteId)}`;
-        }
-
-        const data = await apiCall(url);
-
-        btnGenerate.classList.remove('loading');
-        btnGenerate.disabled = false;
-
-        if (data.success) {
-            currentEmail = data.email;
-            currentRouteId = data.routeId;
-
-            // Update UI
-            emailPlaceholder.style.display = 'none';
-            emailAddress.style.display = 'flex';
-            emailText.textContent = currentEmail;
-            generatorCard.classList.add('active');
-
-            // Show inbox
-            inboxSection.style.display = 'block';
-            inboxSection.style.animation = 'fadeInUp 0.4s ease-out';
-
-            // Show timer
-            timerInfo.style.display = 'flex';
-
-            // Start auto-refresh
-            startAutoRefresh();
-
-            // Immediate first fetch
-            fetchInbox();
-        } else {
-            // Show error toast
-            showToast(`❌ ${data.details || data.error || 'Failed to generate email'}`, 'error');
-        }
-    }
-
     // ===== Toast Notification =====
     function showToast(message, type = 'info') {
-        // Remove existing toast
         const existing = document.querySelector('.toast-notification');
         if (existing) existing.remove();
 
@@ -120,11 +76,122 @@
             backdrop-filter: blur(16px);
             ${type === 'error'
                 ? 'background: rgba(255, 107, 107, 0.15); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.3);'
-                : 'background: rgba(0, 206, 201, 0.15); color: #00cec9; border: 1px solid rgba(0, 206, 201, 0.3);'
+                : type === 'success'
+                    ? 'background: rgba(0, 206, 201, 0.15); color: #00cec9; border: 1px solid rgba(0, 206, 201, 0.3);'
+                    : 'background: rgba(108, 92, 231, 0.15); color: #a29bfe; border: 1px solid rgba(108, 92, 231, 0.3);'
             }
         `;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    // ===== Generate Email =====
+    async function generateEmail() {
+        btnGenerate.classList.add('loading');
+        btnGenerate.disabled = true;
+
+        const data = await apiCall('/api/generate');
+
+        btnGenerate.classList.remove('loading');
+        btnGenerate.disabled = false;
+
+        if (data.success) {
+            currentEmail = data.email;
+            currentRouteId = data.routeId;
+
+            // Save to localStorage
+            localStorage.setItem('tempmail_current', currentEmail);
+            localStorage.setItem('tempmail_routeId', currentRouteId || '');
+
+            // Update UI
+            emailPlaceholder.style.display = 'none';
+            emailAddress.style.display = 'flex';
+            emailText.textContent = currentEmail;
+            generatorCard.classList.add('active');
+
+            // Show delete button
+            btnDelete.style.display = 'flex';
+
+            // Show inbox
+            inboxSection.style.display = 'block';
+            inboxSection.style.animation = 'fadeInUp 0.4s ease-out';
+
+            // Show timer
+            timerInfo.style.display = 'flex';
+
+            // Start auto-refresh
+            startAutoRefresh();
+
+            // Immediate first fetch
+            fetchInbox();
+
+            showToast('✅ Email created successfully!', 'success');
+        } else {
+            showToast(`❌ ${data.details || data.error || 'Failed to generate email'}`, 'error');
+        }
+    }
+
+    // ===== Delete Email =====
+    async function deleteEmail() {
+        if (!currentRouteId) {
+            showToast('⚠️ No email route to delete', 'error');
+            resetToInitial();
+            return;
+        }
+
+        btnDelete.disabled = true;
+        btnDelete.innerHTML = `
+            <div class="loading-spinner" style="width:16px;height:16px;border-width:2px;"></div>
+            <span>Deleting...</span>
+        `;
+
+        const data = await apiCall(`/api/delete?routeId=${encodeURIComponent(currentRouteId)}`);
+
+        if (data.success) {
+            showToast('🗑️ Email deleted from Cloudflare', 'success');
+        } else {
+            showToast(`⚠️ ${data.details || 'Failed to delete route, clearing locally'}`, 'error');
+        }
+
+        // Always reset UI regardless of API result
+        resetToInitial();
+    }
+
+    // ===== Reset UI to Initial State =====
+    function resetToInitial() {
+        currentEmail = null;
+        currentRouteId = null;
+
+        // Clear localStorage
+        localStorage.removeItem('tempmail_current');
+        localStorage.removeItem('tempmail_routeId');
+
+        // Reset UI
+        emailPlaceholder.style.display = 'flex';
+        emailAddress.style.display = 'none';
+        emailText.textContent = '';
+        generatorCard.classList.remove('active');
+        btnDelete.style.display = 'none';
+        btnDelete.disabled = false;
+        btnDelete.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+            <span>Delete This Email</span>
+        `;
+
+        // Hide inbox
+        inboxSection.style.display = 'none';
+        emailList.innerHTML = '';
+        emailCount.textContent = '0 messages';
+        inboxEmpty.style.display = 'block';
+
+        // Hide timer
+        timerInfo.style.display = 'none';
+
+        // Stop auto-refresh
+        stopAutoRefresh();
     }
 
     // ===== Copy Email =====
@@ -135,7 +202,6 @@
             copyFeedback.classList.add('show');
             setTimeout(() => copyFeedback.classList.remove('show'), 1500);
         }).catch(() => {
-            // Fallback for older browsers
             const textarea = document.createElement('textarea');
             textarea.value = currentEmail;
             document.body.appendChild(textarea);
@@ -217,16 +283,13 @@
             modalFrom.textContent = `From: ${email.from}`;
             modalDate.textContent = `Date: ${formatDate(email.date)}`;
 
-            // Render email body
             if (email.htmlBody) {
-                // Use an iframe for HTML content to isolate styles
                 const iframe = document.createElement('iframe');
                 iframe.sandbox = 'allow-same-origin';
                 iframe.style.cssText = 'width:100%;border:none;border-radius:12px;background:white;min-height:300px;';
                 emailBodyContent.innerHTML = '';
                 emailBodyContent.appendChild(iframe);
 
-                // Write HTML into iframe
                 setTimeout(() => {
                     const doc = iframe.contentDocument || iframe.contentWindow.document;
                     doc.open();
@@ -238,11 +301,8 @@
               <style>
                 body { 
                   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-                  padding: 20px;
-                  margin: 0;
-                  color: #333;
-                  font-size: 14px;
-                  line-height: 1.6;
+                  padding: 20px; margin: 0; color: #333;
+                  font-size: 14px; line-height: 1.6;
                 }
                 img { max-width: 100%; height: auto; }
                 a { color: #6c5ce7; }
@@ -253,7 +313,6 @@
           `);
                     doc.close();
 
-                    // Auto-resize iframe
                     const resizeObserver = new ResizeObserver(() => {
                         iframe.style.height = doc.body.scrollHeight + 40 + 'px';
                     });
@@ -266,7 +325,6 @@
                 emailBodyContent.innerHTML = `<p style="color:var(--text-muted);text-align:center;padding:40px">No content available</p>`;
             }
 
-            // Attachments
             if (email.attachments && email.attachments.length > 0) {
                 modalAttachments.style.display = 'block';
                 attachmentList.innerHTML = email.attachments.map(att => `
@@ -323,18 +381,14 @@
         btnRefresh.classList.add('spinning');
         await fetchInbox();
         btnRefresh.classList.remove('spinning');
-
-        // Reset countdown
         countdown = 5;
     }
 
     // ===== Utility Functions =====
     function extractSenderName(from) {
         if (!from) return '?';
-        // "Name <email>" → "Name"
         const match = from.match(/^"?([^"<]+)"?\s*</);
         if (match) return match[1].trim();
-        // "email@domain" → "email"
         const emailMatch = from.match(/([^@]+)@/);
         if (emailMatch) return emailMatch[1];
         return from;
@@ -360,12 +414,8 @@
         if (!dateStr) return '';
         const date = new Date(dateStr);
         return date.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
+            weekday: 'long', year: 'numeric', month: 'long',
+            day: 'numeric', hour: '2-digit', minute: '2-digit',
         });
     }
 
@@ -386,6 +436,7 @@
     // ===== Event Listeners =====
     btnGenerate.addEventListener('click', generateEmail);
     btnCopy.addEventListener('click', copyEmail);
+    btnDelete.addEventListener('click', deleteEmail);
     btnRefresh.addEventListener('click', manualRefresh);
     btnCloseModal.addEventListener('click', closeModal);
 
@@ -398,7 +449,6 @@
     });
 
     // ===== Restored Session =====
-    // Check if there's a stored email from localStorage
     const savedEmail = localStorage.getItem('tempmail_current');
     const savedRouteId = localStorage.getItem('tempmail_routeId');
     if (savedEmail) {
@@ -408,21 +458,11 @@
         emailAddress.style.display = 'flex';
         emailText.textContent = currentEmail;
         generatorCard.classList.add('active');
+        btnDelete.style.display = 'flex';
         inboxSection.style.display = 'block';
         timerInfo.style.display = 'flex';
         startAutoRefresh();
         fetchInbox();
     }
-
-    // Save email & routeId to localStorage when generated
-    const observer = new MutationObserver(() => {
-        if (currentEmail) {
-            localStorage.setItem('tempmail_current', currentEmail);
-            if (currentRouteId) {
-                localStorage.setItem('tempmail_routeId', currentRouteId);
-            }
-        }
-    });
-    observer.observe(emailText, { childList: true, characterData: true, subtree: true });
 
 })();
