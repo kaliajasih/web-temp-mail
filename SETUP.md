@@ -5,13 +5,34 @@
 1. Buka [Cloudflare Dashboard](https://dash.cloudflare.com) → pilih domain kamu
 2. Pergi ke **Email** → **Email Routing**
 3. Klik **Enable Email Routing** → Cloudflare akan otomatis set MX records
-4. Di tab **Routes**, tambahkan **Catch-all rule**:
-   - **Action**: Forward to
-   - **Destination**: Gmail kamu (contoh: `kamu@gmail.com`)
-5. Verifikasi email Gmail kamu — cek inbox Gmail untuk email konfirmasi dari Cloudflare
-6. Pastikan catch-all rule **enabled** ✅
+4. Di tab **Destination addresses**, tambahkan Gmail kamu → verifikasi lewat link di inbox Gmail
+5. Pastikan destination Gmail sudah **verified** ✅
 
-> **Hasil:** Semua email ke `*@domainmu.com` akan masuk ke Gmail
+> **Catatan:** Tidak perlu set catch-all manual — aplikasi akan otomatis membuat routing rule per email melalui Cloudflare API
+
+---
+
+## Langkah 1.5: Dapatkan Cloudflare API Token & Zone ID
+
+### API Token:
+1. Buka [Cloudflare Dashboard](https://dash.cloudflare.com) → klik avatar → **My Profile**
+2. Pergi ke **API Tokens** → klik **Create Token**
+3. Pilih **Create Custom Token**:
+   - **Token name**: `TempMail Email Routing`
+   - **Permissions**:
+     - Zone → **Email Routing Rules** → **Edit**
+     - Zone → **Email Routing Addresses** → **Read**
+   - **Zone Resources**: Include → Specific zone → pilih domain kamu
+4. Klik **Continue to summary** → **Create Token**
+5. **Salin token** — hanya ditampilkan sekali!
+
+### Zone ID:
+1. Buka [Cloudflare Dashboard](https://dash.cloudflare.com) → pilih domain kamu
+2. Di halaman **Overview**, scroll ke bawah di **sidebar kanan**
+3. Salin **Zone ID**
+
+### Account ID (Optional):
+1. Di halaman yang sama, salin **Account ID** (di bawah Zone ID)
 
 ---
 
@@ -45,9 +66,11 @@
 
 ## Langkah 4: Konfigurasi Environment Variables
 
-### Untuk lokal development:
+### Untuk Vercel (Production):
 
-Buat file `.env` di root project:
+1. Buka [Vercel Dashboard](https://vercel.com) → project kamu
+2. Pergi ke **Settings** → **Environment Variables**
+3. Tambahkan variabel berikut:
 
 ```env
 GMAIL_CLIENT_ID=xxx.apps.googleusercontent.com
@@ -55,13 +78,14 @@ GMAIL_CLIENT_SECRET=GOCSPX-xxx
 GMAIL_REFRESH_TOKEN=1//xxx
 EMAIL_DOMAIN=domainmu.com
 GMAIL_ADDRESS=kamu@gmail.com
+CLOUDFLARE_API_TOKEN=xxx
+CLOUDFLARE_ZONE_ID=xxx
+CLOUDFLARE_ACCOUNT_ID=xxx
 ```
 
-### Untuk Vercel:
+### Untuk lokal development:
 
-1. Buka [Vercel Dashboard](https://vercel.com) → project kamu
-2. Pergi ke **Settings** → **Environment Variables**
-3. Tambahkan semua variabel di atas satu per satu
+Buat file `.env` di root project dengan isi yang sama.
 
 ---
 
@@ -85,7 +109,7 @@ vercel --prod
 
 ## Langkah 6: Test
 
-1. Generate email baru di web app
+1. Generate email baru di web app → cek Cloudflare Email Routing → rule baru harus muncul
 2. Kirim email dari email lain ke alamat temp mail yang di-generate
 3. Tunggu beberapa detik — email akan muncul di inbox
 4. Klik email untuk baca isi lengkapnya
@@ -96,8 +120,10 @@ vercel --prod
 
 | Problem | Solusi |
 |---------|--------|
-| Email tidak masuk | Cek Cloudflare Email Routing → catch-all enabled? |
+| "Failed to create email route" | Cek `CLOUDFLARE_API_TOKEN` dan `CLOUDFLARE_ZONE_ID` benar |
+| Route dibuat tapi email tak masuk | Cek Gmail destination sudah **verified** di Cloudflare |
 | Gmail API error 401 | Refresh token expired → ulangi langkah 3 |
 | Gmail API error 403 | Gmail API belum di-enable → ulangi langkah 2.4 |
 | CORS error | Pastikan `vercel.json` headers sudah benar |
 | Inbox kosong terus | Perlu waktu 1-5 menit untuk email masuk via Cloudflare |
+| Cloudflare API 403 | API Token tidak punya permission Email Routing Rules Edit |

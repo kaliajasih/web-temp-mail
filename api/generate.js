@@ -1,3 +1,5 @@
+const { createEmailRoute } = require('./_lib/cloudflare');
+
 const adjectives = [
     'cool', 'fast', 'dark', 'wild', 'epic', 'mega', 'neo', 'pro', 'ultra', 'zen',
     'cyber', 'pixel', 'hyper', 'nova', 'flux', 'alpha', 'beta', 'sigma', 'delta', 'omega',
@@ -10,7 +12,7 @@ const nouns = [
     'star', 'moon', 'comet', 'drift', 'glitch', 'raid', 'bolt', 'surge', 'nexus', 'vault'
 ];
 
-module.exports = function handler(req, res) {
+module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -21,11 +23,28 @@ module.exports = function handler(req, res) {
     const num = Math.floor(Math.random() * 9000) + 1000;
     const email = `${adj}.${noun}${num}@${domain}`;
 
-    res.status(200).json({
-        success: true,
-        email,
-        domain,
-        createdAt: new Date().toISOString(),
-        expiresIn: '1 hour'
-    });
+    try {
+        // Create email routing rule in Cloudflare so emails to this address
+        // get forwarded to the configured Gmail
+        const routeResult = await createEmailRoute(email);
+
+        console.log(`✅ Created Cloudflare route for: ${email} (rule ID: ${routeResult.tag || routeResult.id})`);
+
+        res.status(200).json({
+            success: true,
+            email,
+            domain,
+            routeId: routeResult.tag || routeResult.id,
+            createdAt: new Date().toISOString(),
+            expiresIn: '1 hour'
+        });
+    } catch (error) {
+        console.error(`❌ Failed to create Cloudflare route for ${email}:`, error.message);
+
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create email route in Cloudflare',
+            details: error.message
+        });
+    }
 };

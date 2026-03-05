@@ -80,7 +80,43 @@
 
             // Immediate first fetch
             fetchInbox();
+        } else {
+            // Show error toast
+            showToast(`❌ ${data.details || data.error || 'Failed to generate email'}`, 'error');
         }
+    }
+
+    // ===== Toast Notification =====
+    function showToast(message, type = 'info') {
+        // Remove existing toast
+        const existing = document.querySelector('.toast-notification');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = `toast-notification toast-${type}`;
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            z-index: 2000;
+            animation: fadeInUp 0.3s ease-out;
+            max-width: 90%;
+            text-align: center;
+            backdrop-filter: blur(16px);
+            ${type === 'error'
+                ? 'background: rgba(255, 107, 107, 0.15); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.3);'
+                : 'background: rgba(0, 206, 201, 0.15); color: #00cec9; border: 1px solid rgba(0, 206, 201, 0.3);'
+            }
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
     }
 
     // ===== Copy Email =====
