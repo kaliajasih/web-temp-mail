@@ -1,11 +1,11 @@
-const { listEmailRoutes, deleteEmailRoute } = require('./_lib/cloudflare');
+const { listAllEmailRoutes, deleteEmailRoute } = require('./_lib/cloudflare');
 const { getGmail } = require('./_lib/gmail');
 
 const EXPIRY_MINUTES = 30;
 
 /**
- * Cleanup endpoint - deletes expired TempMail routing rules from Cloudflare
- * Triggered by Vercel Cron every 5 minutes or manually via GET /api/cleanup
+ * Cleanup endpoint - deletes expired TempMail rules across ALL zones
+ * Can be triggered manually via GET /api/cleanup
  */
 module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') {
@@ -15,47 +15,42 @@ module.exports = async function handler(req, res) {
     console.log('🧹 Starting cleanup of expired TempMail routes...');
 
     try {
-        const allRoutes = await listEmailRoutes();
+        const allRoutes = await listAllEmailRoutes();
         const tempMailRoutes = allRoutes.filter(r => r.name && r.name.startsWith('TempMail:'));
-
         const now = new Date();
         const deletedRules = [];
         const errors = [];
 
         for (const route of tempMailRoutes) {
             try {
-                // Parse timestamp from rule name: "TempMail: email@domain | Created: ISO_DATE"
                 const createdMatch = route.name.match(/Created:\s*(.+)$/);
+                const ruleId = route.tag || route.id;
+                const zoneId = route._zoneId;
+                const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
+                const tempEmail = emailMatch ? emailMatch[1] : null;
 
-                let createdAt;
-                if (createdMatch) {
-                    createdAt = new Date(createdMatch[1].trim());
-                } else {
-                    // No timestamp — skip (old format rule)
-                    console.log(`⏭️ Skipping rule "${route.name}" - no timestamp`);
+                // No timestamp = old rule, delete it
+                if (!createdMatch) {
+                    await deleteEmailRoute(ruleId, zoneId);
+                    deletedRules.push({ ruleId, email: tempEmail, reason: 'no timestamp' });
                     continue;
                 }
 
+                const createdAt = new Date(createdMatch[1].trim());
                 const ageMinutes = (now - createdAt) / (1000 * 60);
 
                 if (ageMinutes >= EXPIRY_MINUTES) {
-                    const ruleId = route.tag || route.id;
+                    await deleteEmailRoute(ruleId, zoneId);
+                    console.log(`🗑️ Deleted: ${tempEmail || ruleId} (${Math.round(ageMinutes)}min old)`);
 
-                    // Extract email for Gmail cleanup
-                    const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
-                    const tempEmail = emailMatch ? emailMatch[1] : null;
-
-                    // Delete Cloudflare routing rule
-                    await deleteEmailRoute(ruleId);
-                    console.log(`🗑️ Deleted: ${route.name} (age: ${Math.round(ageMinutes)}min)`);
-
-                    // Trash related Gmail messages
                     if (tempEmail) {
                         try {
-                            await cleanupGmail(tempEmail);
-                        } catch (e) {
-                            console.error(`⚠️ Gmail cleanup failed for ${tempEmail}:`, e.message);
-                        }
+                            const gmail = getGmail();
+                            const response = await gmail.users.messages.list({ userId: 'me', q: `to:${tempEmail}`, maxResults: 50 });
+                            for (const msg of (response.data.messages || [])) {
+                                await gmail.users.messages.trash({ userId: 'me', id: msg.id }).catch(() => { });
+                            }
+                        } catch (e) { /* ignore */ }
                     }
 
                     deletedRules.push({ ruleId, email: tempEmail, ageMinutes: Math.round(ageMinutes) });
@@ -79,23 +74,3 @@ module.exports = async function handler(req, res) {
         res.status(500).json({ success: false, error: error.message });
     }
 };
-
-async function cleanupGmail(tempEmail) {
-    const gmail = getGmail();
-    const response = await gmail.users.messages.list({
-        userId: 'me',
-        q: `to:${tempEmail}`,
-        maxResults: 50,
-    });
-
-    const messages = response.data.messages || [];
-    for (const msg of messages) {
-        try {
-            await gmail.users.messages.trash({ userId: 'me', id: msg.id });
-        } catch (e) { /* ignore */ }
-    }
-
-    if (messages.length > 0) {
-        console.log(`📧 Trashed ${messages.length} emails for ${tempEmail}`);
-    }
-}

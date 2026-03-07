@@ -1,4 +1,4 @@
-const { createEmailRoute, listEmailRoutes, deleteEmailRoute } = require('./_lib/cloudflare');
+const { createEmailRoute, deleteEmailRoute, listAllEmailRoutes, getRandomDomainConfig } = require('./_lib/cloudflare');
 const { getGmail } = require('./_lib/gmail');
 
 const EXPIRY_MINUTES = 30;
@@ -16,25 +16,26 @@ const nouns = [
 ];
 
 /**
- * Cleanup expired TempMail rules (runs every time a new email is generated)
+ * Cleanup expired TempMail rules across ALL zones
  */
 async function cleanupExpiredRules() {
     try {
-        const allRoutes = await listEmailRoutes();
+        const allRoutes = await listAllEmailRoutes();
         const tempMailRoutes = allRoutes.filter(r => r.name && r.name.startsWith('TempMail:'));
         const now = new Date();
         let deletedCount = 0;
 
         for (const route of tempMailRoutes) {
             const createdMatch = route.name.match(/Created:\s*(.+)$/);
+            const ruleId = route.tag || route.id;
+            const zoneId = route._zoneId; // attached by listAllEmailRoutes
+            const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
+            const tempEmail = emailMatch ? emailMatch[1] : null;
 
-            // No timestamp = old format rule, always delete it
+            // No timestamp = old format rule, always delete
             if (!createdMatch) {
-                const ruleId = route.tag || route.id;
-                const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
-                const tempEmail = emailMatch ? emailMatch[1] : null;
                 try {
-                    await deleteEmailRoute(ruleId);
+                    await deleteEmailRoute(ruleId, zoneId);
                     deletedCount++;
                     console.log(`🗑️ Auto-deleted old rule: ${tempEmail || ruleId} (no timestamp)`);
                 } catch (e) { console.error(`❌ Failed to delete ${ruleId}:`, e.message); }
@@ -45,16 +46,11 @@ async function cleanupExpiredRules() {
             const ageMinutes = (now - createdAt) / (1000 * 60);
 
             if (ageMinutes >= EXPIRY_MINUTES) {
-                const ruleId = route.tag || route.id;
-                const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
-                const tempEmail = emailMatch ? emailMatch[1] : null;
-
                 try {
-                    await deleteEmailRoute(ruleId);
+                    await deleteEmailRoute(ruleId, zoneId);
                     deletedCount++;
                     console.log(`🗑️ Auto-deleted: ${tempEmail || ruleId} (${Math.round(ageMinutes)}min old)`);
 
-                    // Trash Gmail messages
                     if (tempEmail) {
                         try {
                             const gmail = getGmail();
@@ -110,10 +106,18 @@ module.exports = async function handler(req, res) {
         }
     }
 
-    // Run cleanup of expired rules
+    // Run cleanup of expired rules across all zones
     await cleanupExpiredRules();
 
-    const domain = process.env.EMAIL_DOMAIN || 'yourdomain.com';
+    // Pick a random domain
+    let domainConfig;
+    try {
+        domainConfig = getRandomDomainConfig();
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+
+    const { domain, zoneId } = domainConfig;
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
     const noun = nouns[Math.floor(Math.random() * nouns.length)];
     const num = Math.floor(Math.random() * 9000) + 1000;
@@ -121,9 +125,9 @@ module.exports = async function handler(req, res) {
 
     try {
         const createdAt = new Date().toISOString();
-        const routeResult = await createEmailRoute(email, createdAt);
+        const routeResult = await createEmailRoute(email, zoneId, createdAt);
 
-        console.log(`✅ Created Cloudflare route for: ${email} (rule ID: ${routeResult.tag || routeResult.id})`);
+        console.log(`✅ Created route: ${email} (zone: ${zoneId}, rule: ${routeResult.tag || routeResult.id})`);
 
         res.status(200).json({
             success: true,
@@ -134,11 +138,10 @@ module.exports = async function handler(req, res) {
             expiresIn: '30 minutes'
         });
     } catch (error) {
-        console.error(`❌ Failed to create Cloudflare route for ${email}:`, error.message);
-
+        console.error(`❌ Failed to create route for ${email}:`, error.message);
         res.status(500).json({
             success: false,
-            error: 'Failed to create email route in Cloudflare',
+            error: 'Failed to create email route',
             details: error.message
         });
     }
