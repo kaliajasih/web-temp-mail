@@ -3,42 +3,24 @@
  * Supports multiple domains with individual zone IDs
  */
 
+const path = require('path');
+
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
 
 /**
- * Parse domain configurations from environment variables
- * Format: EMAIL_DOMAIN_1, EMAIL_ZONE_1, EMAIL_DOMAIN_2, EMAIL_ZONE_2, ...
- * Also supports legacy single domain: EMAIL_DOMAIN + CLOUDFLARE_ZONE_ID
+ * Load domain configurations from domains.json file
+ * Mau tambah domain? Edit file api/_lib/domains.json
  * @returns {Array<{domain: string, zoneId: string}>}
  */
 function getDomainConfigs() {
-    const configs = [];
+    const domainsPath = path.join(__dirname, 'domains.json');
+    const domains = require(domainsPath);
 
-    // Scan for numbered domain env vars: EMAIL_DOMAIN_1, EMAIL_ZONE_1, etc.
-    for (let i = 1; i <= 50; i++) {
-        const domain = process.env[`EMAIL_DOMAIN_${i}`];
-        const zoneId = process.env[`EMAIL_ZONE_${i}`];
-
-        if (domain && zoneId) {
-            configs.push({ domain, zoneId });
-        } else {
-            // Stop at first gap
-            break;
-        }
+    if (!Array.isArray(domains) || domains.length === 0) {
+        throw new Error('No domains configured in api/_lib/domains.json');
     }
 
-    if (configs.length > 0) {
-        return configs;
-    }
-
-    // Fallback to legacy single domain
-    const domain = process.env.EMAIL_DOMAIN;
-    const zoneId = process.env.CLOUDFLARE_ZONE_ID;
-    if (domain && zoneId) {
-        return [{ domain, zoneId }];
-    }
-
-    throw new Error('No domain configuration found. Set EMAIL_DOMAIN_1 + EMAIL_ZONE_1 (and _2, _3, etc.)');
+    return domains;
 }
 
 /**
