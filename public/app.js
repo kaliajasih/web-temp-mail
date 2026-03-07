@@ -14,7 +14,7 @@
     let currentCreatedAt = null;
     let countdownInterval = null;
     let expiryInterval = null;
-    let countdown = 5;
+    let countdown = 30;
 
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
