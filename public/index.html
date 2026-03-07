@@ -52,6 +52,28 @@
         <span>Your Temporary Email</span>
       </div>
 
+      <!-- Domain Selector -->
+      <div class="domain-selector" id="domainSelector">
+        <label class="domain-label" for="domainSelect">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+          <span>Select Domain</span>
+        </label>
+        <div class="domain-select-wrapper">
+          <select id="domainSelect" class="domain-select">
+            <option value="">Loading domains...</option>
+          </select>
+          <svg class="domain-select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </div>
+
       <div class="email-display" id="emailDisplay">
         <div class="email-placeholder" id="emailPlaceholder">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -103,6 +125,22 @@
             <polyline points="12 6 12 12 16 14" />
           </svg>
           <span id="timerText">Auto-refresh in 5s</span>
+        </div>
+      </div>
+
+      <!-- Expiry Timer -->
+      <div class="expiry-timer" id="expiryTimer" style="display:none">
+        <div class="expiry-timer-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 2h4" />
+            <path d="M12 14V10" />
+            <circle cx="12" cy="14" r="8" />
+          </svg>
+          <span>Auto-delete in <strong id="expiryTimeText">40:00</strong></span>
+        </div>
+        <div class="expiry-progress-bar">
+          <div class="expiry-progress-fill" id="expiryProgressFill"></div>
         </div>
       </div>
     </section>
