@@ -7,8 +7,10 @@ const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
 
 /**
  * Create an email routing rule in Cloudflare
+ * @param {string} tempEmail - The temp email address
+ * @param {string} createdAt - ISO timestamp for auto-delete tracking
  */
-async function createEmailRoute(tempEmail) {
+async function createEmailRoute(tempEmail, createdAt) {
     const apiToken = process.env.CLOUDFLARE_API_TOKEN;
     const zoneId = process.env.CLOUDFLARE_ZONE_ID;
     const destinationEmail = process.env.GMAIL_ADDRESS;
@@ -38,7 +40,7 @@ async function createEmailRoute(tempEmail) {
                     value: tempEmail,
                 },
             ],
-            name: `TempMail: ${tempEmail}`,
+            name: `TempMail: ${tempEmail} | Created: ${createdAt || new Date().toISOString()}`,
             priority: 0,
         }),
     });

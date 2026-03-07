@@ -1,4 +1,7 @@
-const { createEmailRoute } = require('./_lib/cloudflare');
+const { createEmailRoute, listEmailRoutes, deleteEmailRoute } = require('./_lib/cloudflare');
+const { getGmail } = require('./_lib/gmail');
+
+const EXPIRY_MINUTES = 30;
 
 const adjectives = [
     'cool', 'fast', 'dark', 'wild', 'epic', 'mega', 'neo', 'pro', 'ultra', 'zen',
@@ -12,10 +15,64 @@ const nouns = [
     'star', 'moon', 'comet', 'drift', 'glitch', 'raid', 'bolt', 'surge', 'nexus', 'vault'
 ];
 
+/**
+ * Cleanup expired TempMail rules (runs every time a new email is generated)
+ */
+async function cleanupExpiredRules() {
+    try {
+        const allRoutes = await listEmailRoutes();
+        const tempMailRoutes = allRoutes.filter(r => r.name && r.name.startsWith('TempMail:'));
+        const now = new Date();
+        let deletedCount = 0;
+
+        for (const route of tempMailRoutes) {
+            const createdMatch = route.name.match(/Created:\s*(.+)$/);
+            if (!createdMatch) continue;
+
+            const createdAt = new Date(createdMatch[1].trim());
+            const ageMinutes = (now - createdAt) / (1000 * 60);
+
+            if (ageMinutes >= EXPIRY_MINUTES) {
+                const ruleId = route.tag || route.id;
+                const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
+                const tempEmail = emailMatch ? emailMatch[1] : null;
+
+                try {
+                    await deleteEmailRoute(ruleId);
+                    deletedCount++;
+                    console.log(`🗑️ Auto-deleted: ${tempEmail || ruleId} (${Math.round(ageMinutes)}min old)`);
+
+                    // Trash Gmail messages
+                    if (tempEmail) {
+                        try {
+                            const gmail = getGmail();
+                            const res = await gmail.users.messages.list({ userId: 'me', q: `to:${tempEmail}`, maxResults: 50 });
+                            for (const msg of (res.data.messages || [])) {
+                                await gmail.users.messages.trash({ userId: 'me', id: msg.id }).catch(() => { });
+                            }
+                        } catch (e) { /* ignore gmail errors */ }
+                    }
+                } catch (e) {
+                    console.error(`❌ Failed to delete ${ruleId}:`, e.message);
+                }
+            }
+        }
+
+        if (deletedCount > 0) {
+            console.log(`🧹 Cleanup: ${deletedCount} expired rules deleted`);
+        }
+    } catch (e) {
+        console.error('⚠️ Cleanup error (non-fatal):', e.message);
+    }
+}
+
 module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
+
+    // Run cleanup of expired rules first (non-blocking for response)
+    await cleanupExpiredRules();
 
     const domain = process.env.EMAIL_DOMAIN || 'yourdomain.com';
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
@@ -24,7 +81,8 @@ module.exports = async function handler(req, res) {
     const email = `${adj}.${noun}${num}@${domain}`;
 
     try {
-        const routeResult = await createEmailRoute(email);
+        const createdAt = new Date().toISOString();
+        const routeResult = await createEmailRoute(email, createdAt);
 
         console.log(`✅ Created Cloudflare route for: ${email} (rule ID: ${routeResult.tag || routeResult.id})`);
 
@@ -33,8 +91,8 @@ module.exports = async function handler(req, res) {
             email,
             domain,
             routeId: routeResult.tag || routeResult.id,
-            createdAt: new Date().toISOString(),
-            expiresIn: '1 hour'
+            createdAt,
+            expiresIn: '30 minutes'
         });
     } catch (error) {
         console.error(`❌ Failed to create Cloudflare route for ${email}:`, error.message);

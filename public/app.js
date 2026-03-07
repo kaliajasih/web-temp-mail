@@ -5,11 +5,15 @@
 (function () {
     'use strict';
 
+    // ===== Constants =====
+    const EXPIRY_MINUTES = 30;
+
     // ===== State =====
     let currentEmail = null;
     let currentRouteId = null;
-    let refreshInterval = null;
+    let currentCreatedAt = null;
     let countdownInterval = null;
+    let expiryInterval = null;
     let countdown = 5;
 
     // ===== DOM Elements =====
@@ -20,7 +24,6 @@
     const btnGenerate = $('#btnGenerate');
     const btnCopy = $('#btnCopy');
     const copyFeedback = $('#copyFeedback');
-    const btnDelete = $('#btnDelete');
     const timerInfo = $('#timerInfo');
     const timerText = $('#timerText');
     const generatorCard = $('#generatorCard');
@@ -38,6 +41,9 @@
     const modalAttachments = $('#modalAttachments');
     const attachmentList = $('#attachmentList');
     const btnCloseModal = $('#btnCloseModal');
+    const expiryTimer = $('#expiryTimer');
+    const expiryTimeText = $('#expiryTimeText');
+    const expiryProgressFill = $('#expiryProgressFill');
 
     // ===== API Helpers =====
     async function apiCall(endpoint) {
@@ -98,19 +104,18 @@
         if (data.success) {
             currentEmail = data.email;
             currentRouteId = data.routeId;
+            currentCreatedAt = data.createdAt;
 
             // Save to localStorage
             localStorage.setItem('tempmail_current', currentEmail);
             localStorage.setItem('tempmail_routeId', currentRouteId || '');
+            localStorage.setItem('tempmail_createdAt', currentCreatedAt || '');
 
             // Update UI
             emailPlaceholder.style.display = 'none';
             emailAddress.style.display = 'flex';
             emailText.textContent = currentEmail;
             generatorCard.classList.add('active');
-
-            // Show delete button
-            btnDelete.style.display = 'flex';
 
             // Show inbox
             inboxSection.style.display = 'block';
@@ -119,67 +124,37 @@
             // Show timer
             timerInfo.style.display = 'flex';
 
+            // Start expiry timer
+            startExpiryTimer();
+
             // Start auto-refresh
             startAutoRefresh();
 
             // Immediate first fetch
             fetchInbox();
 
-            showToast('✅ Email created successfully!', 'success');
+            showToast('✅ Email created! Auto-deletes in 30 minutes', 'success');
         } else {
             showToast(`❌ ${data.details || data.error || 'Failed to generate email'}`, 'error');
         }
-    }
-
-    // ===== Delete Email =====
-    async function deleteEmail() {
-        if (!currentRouteId) {
-            showToast('⚠️ No email route to delete', 'error');
-            resetToInitial();
-            return;
-        }
-
-        btnDelete.disabled = true;
-        btnDelete.innerHTML = `
-            <div class="loading-spinner" style="width:16px;height:16px;border-width:2px;"></div>
-            <span>Deleting...</span>
-        `;
-
-        const data = await apiCall(`/api/delete?routeId=${encodeURIComponent(currentRouteId)}`);
-
-        if (data.success) {
-            showToast('🗑️ Email deleted from Cloudflare', 'success');
-        } else {
-            showToast(`⚠️ ${data.details || 'Failed to delete route, clearing locally'}`, 'error');
-        }
-
-        // Always reset UI regardless of API result
-        resetToInitial();
     }
 
     // ===== Reset UI to Initial State =====
     function resetToInitial() {
         currentEmail = null;
         currentRouteId = null;
+        currentCreatedAt = null;
 
         // Clear localStorage
         localStorage.removeItem('tempmail_current');
         localStorage.removeItem('tempmail_routeId');
+        localStorage.removeItem('tempmail_createdAt');
 
         // Reset UI
         emailPlaceholder.style.display = 'flex';
         emailAddress.style.display = 'none';
         emailText.textContent = '';
         generatorCard.classList.remove('active');
-        btnDelete.style.display = 'none';
-        btnDelete.disabled = false;
-        btnDelete.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-            <span>Delete This Email</span>
-        `;
 
         // Hide inbox
         inboxSection.style.display = 'none';
@@ -187,10 +162,9 @@
         emailCount.textContent = '0 messages';
         inboxEmpty.style.display = 'block';
 
-        // Hide timer
+        // Hide timers
         timerInfo.style.display = 'none';
-
-        // Stop auto-refresh
+        stopExpiryTimer();
         stopAutoRefresh();
     }
 
@@ -350,14 +324,12 @@
     // ===== Auto Refresh =====
     function startAutoRefresh() {
         stopAutoRefresh();
-
         countdown = 5;
         updateCountdown();
 
         countdownInterval = setInterval(() => {
             countdown--;
             updateCountdown();
-
             if (countdown <= 0) {
                 fetchInbox();
                 countdown = 5;
@@ -374,6 +346,64 @@
 
     function updateCountdown() {
         timerText.textContent = `Auto-refresh in ${countdown}s`;
+    }
+
+    // ===== Expiry Timer =====
+    function startExpiryTimer() {
+        stopExpiryTimer();
+        expiryTimer.style.display = 'block';
+        updateExpiryDisplay();
+
+        expiryInterval = setInterval(() => {
+            const remaining = getExpiryRemaining();
+            if (remaining <= 0) {
+                showToast('⏰ Email expired — generating new one...', 'info');
+                resetToInitial();
+                return;
+            }
+            updateExpiryDisplay();
+        }, 1000);
+    }
+
+    function stopExpiryTimer() {
+        if (expiryInterval) {
+            clearInterval(expiryInterval);
+            expiryInterval = null;
+        }
+        expiryTimer.style.display = 'none';
+    }
+
+    function getExpiryRemaining() {
+        if (!currentCreatedAt) return 0;
+        const created = new Date(currentCreatedAt);
+        const expiresAt = new Date(created.getTime() + EXPIRY_MINUTES * 60 * 1000);
+        return Math.max(0, expiresAt - new Date());
+    }
+
+    function updateExpiryDisplay() {
+        const remainingMs = getExpiryRemaining();
+        const totalMs = EXPIRY_MINUTES * 60 * 1000;
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        const minutes = Math.floor(remainingSec / 60);
+        const seconds = remainingSec % 60;
+
+        expiryTimeText.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+        const progress = (remainingMs / totalMs) * 100;
+        expiryProgressFill.style.width = `${progress}%`;
+
+        if (progress <= 15) {
+            expiryProgressFill.style.background = 'var(--danger)';
+            expiryTimer.classList.add('expiry-critical');
+            expiryTimer.classList.remove('expiry-warning');
+        } else if (progress <= 40) {
+            expiryProgressFill.style.background = 'var(--warning)';
+            expiryTimer.classList.add('expiry-warning');
+            expiryTimer.classList.remove('expiry-critical');
+        } else {
+            expiryProgressFill.style.background = '';
+            expiryTimer.classList.remove('expiry-warning', 'expiry-critical');
+        }
     }
 
     // ===== Manual Refresh =====
@@ -436,7 +466,6 @@
     // ===== Event Listeners =====
     btnGenerate.addEventListener('click', generateEmail);
     btnCopy.addEventListener('click', copyEmail);
-    btnDelete.addEventListener('click', deleteEmail);
     btnRefresh.addEventListener('click', manualRefresh);
     btnCloseModal.addEventListener('click', closeModal);
 
@@ -451,18 +480,28 @@
     // ===== Restored Session =====
     const savedEmail = localStorage.getItem('tempmail_current');
     const savedRouteId = localStorage.getItem('tempmail_routeId');
+    const savedCreatedAt = localStorage.getItem('tempmail_createdAt');
+
     if (savedEmail) {
         currentEmail = savedEmail;
         currentRouteId = savedRouteId;
-        emailPlaceholder.style.display = 'none';
-        emailAddress.style.display = 'flex';
-        emailText.textContent = currentEmail;
-        generatorCard.classList.add('active');
-        btnDelete.style.display = 'flex';
-        inboxSection.style.display = 'block';
-        timerInfo.style.display = 'flex';
-        startAutoRefresh();
-        fetchInbox();
+        currentCreatedAt = savedCreatedAt;
+
+        // Check if expired
+        if (currentCreatedAt && getExpiryRemaining() <= 0) {
+            showToast('⏰ Previous email has expired', 'info');
+            resetToInitial();
+        } else {
+            emailPlaceholder.style.display = 'none';
+            emailAddress.style.display = 'flex';
+            emailText.textContent = currentEmail;
+            generatorCard.classList.add('active');
+            inboxSection.style.display = 'block';
+            timerInfo.style.display = 'flex';
+            startExpiryTimer();
+            startAutoRefresh();
+            fetchInbox();
+        }
     }
 
 })();

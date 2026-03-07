@@ -474,6 +474,93 @@ body {
   transform: none;
 }
 
+/* ========================================
+   Expiry Timer
+   ======================================== */
+.expiry-timer {
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: rgba(108, 92, 231, 0.06);
+  border: 1px solid rgba(108, 92, 231, 0.15);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.expiry-timer.expiry-warning {
+  background: rgba(255, 217, 61, 0.06);
+  border-color: rgba(255, 217, 61, 0.2);
+}
+
+.expiry-timer.expiry-critical {
+  background: rgba(255, 107, 107, 0.06);
+  border-color: rgba(255, 107, 107, 0.2);
+  animation: expiryPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes expiryPulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.expiry-timer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.expiry-timer-header svg {
+  color: var(--accent-secondary);
+  flex-shrink: 0;
+}
+
+.expiry-warning .expiry-timer-header svg {
+  color: var(--warning);
+}
+
+.expiry-critical .expiry-timer-header svg {
+  color: var(--danger);
+}
+
+.expiry-timer-header strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--accent-secondary);
+}
+
+.expiry-warning .expiry-timer-header strong {
+  color: var(--warning);
+}
+
+.expiry-critical .expiry-timer-header strong {
+  color: var(--danger);
+}
+
+.expiry-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.expiry-progress-fill {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 2px;
+  transition: width 1s linear, background 0.5s ease;
+  width: 100%;
+}
+
 .timer-info {
   display: flex;
   align-items: center;
