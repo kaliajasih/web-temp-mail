@@ -27,7 +27,19 @@ async function cleanupExpiredRules() {
 
         for (const route of tempMailRoutes) {
             const createdMatch = route.name.match(/Created:\s*(.+)$/);
-            if (!createdMatch) continue;
+
+            // No timestamp = old format rule, always delete it
+            if (!createdMatch) {
+                const ruleId = route.tag || route.id;
+                const emailMatch = route.name.match(/TempMail:\s*([^\s|]+)/);
+                const tempEmail = emailMatch ? emailMatch[1] : null;
+                try {
+                    await deleteEmailRoute(ruleId);
+                    deletedCount++;
+                    console.log(`🗑️ Auto-deleted old rule: ${tempEmail || ruleId} (no timestamp)`);
+                } catch (e) { console.error(`❌ Failed to delete ${ruleId}:`, e.message); }
+                continue;
+            }
 
             const createdAt = new Date(createdMatch[1].trim());
             const ageMinutes = (now - createdAt) / (1000 * 60);
