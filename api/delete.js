@@ -5,17 +5,16 @@ module.exports = async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { routeId, domain } = req.query;
+    const { routeId } = req.query;
 
     if (!routeId) {
         return res.status(400).json({ success: false, error: 'routeId parameter is required' });
     }
 
     try {
-        // Pass domain to help find the correct zone, falls back to searching all zones
-        await deleteEmailRoute(routeId, domain || null);
+        await deleteEmailRoute(routeId);
 
-        console.log(`🗑️ Deleted Cloudflare route: ${routeId} (domain: ${domain || 'auto-detected'})`);
+        console.log(`🗑️ Deleted Cloudflare route: ${routeId}`);
 
         res.status(200).json({
             success: true,

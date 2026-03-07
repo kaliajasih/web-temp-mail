@@ -1,4 +1,4 @@
-const { createEmailRoute, getDomainConfigs } = require('./_lib/cloudflare');
+const { createEmailRoute } = require('./_lib/cloudflare');
 
 const adjectives = [
     'cool', 'fast', 'dark', 'wild', 'epic', 'mega', 'neo', 'pro', 'ultra', 'zen',
@@ -17,37 +17,14 @@ module.exports = async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // Get domain from query or use first available domain
-    let domain = req.query.domain;
-    try {
-        const configs = getDomainConfigs();
-        if (!domain) {
-            domain = configs[0].domain;
-        } else {
-            // Validate that the requested domain exists
-            const valid = configs.find(c => c.domain === domain);
-            if (!valid) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Domain "${domain}" is not configured. Available: ${configs.map(c => c.domain).join(', ')}`,
-                });
-            }
-        }
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            error: 'Domain configuration error',
-            details: error.message,
-        });
-    }
-
+    const domain = process.env.EMAIL_DOMAIN || 'yourdomain.com';
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
     const noun = nouns[Math.floor(Math.random() * nouns.length)];
     const num = Math.floor(Math.random() * 9000) + 1000;
     const email = `${adj}.${noun}${num}@${domain}`;
 
     try {
-        const routeResult = await createEmailRoute(email, domain);
+        const routeResult = await createEmailRoute(email);
 
         console.log(`✅ Created Cloudflare route for: ${email} (rule ID: ${routeResult.tag || routeResult.id})`);
 
@@ -56,8 +33,8 @@ module.exports = async function handler(req, res) {
             email,
             domain,
             routeId: routeResult.tag || routeResult.id,
-            createdAt: routeResult.createdAt,
-            expiresIn: '40 minutes',
+            createdAt: new Date().toISOString(),
+            expiresIn: '1 hour'
         });
     } catch (error) {
         console.error(`❌ Failed to create Cloudflare route for ${email}:`, error.message);
@@ -65,7 +42,7 @@ module.exports = async function handler(req, res) {
         res.status(500).json({
             success: false,
             error: 'Failed to create email route in Cloudflare',
-            details: error.message,
+            details: error.message
         });
     }
 };

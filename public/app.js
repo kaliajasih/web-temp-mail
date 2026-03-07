@@ -5,18 +5,11 @@
 (function () {
     'use strict';
 
-    // ===== Constants =====
-    const EXPIRY_MINUTES = 40;
-
     // ===== State =====
     let currentEmail = null;
     let currentRouteId = null;
-    let currentDomain = null;
-    let currentCreatedAt = null;
-    let availableDomains = [];
     let refreshInterval = null;
     let countdownInterval = null;
-    let expiryInterval = null;
     let countdown = 5;
 
     // ===== DOM Elements =====
@@ -45,10 +38,6 @@
     const modalAttachments = $('#modalAttachments');
     const attachmentList = $('#attachmentList');
     const btnCloseModal = $('#btnCloseModal');
-    const domainSelect = $('#domainSelect');
-    const expiryTimer = $('#expiryTimer');
-    const expiryTimeText = $('#expiryTimeText');
-    const expiryProgressFill = $('#expiryProgressFill');
 
     // ===== API Helpers =====
     async function apiCall(endpoint) {
@@ -96,49 +85,12 @@
         setTimeout(() => toast.remove(), 4000);
     }
 
-    // ===== Fetch Available Domains =====
-    async function fetchDomains() {
-        const data = await apiCall('/api/domains');
-        if (data.success && data.domains && data.domains.length > 0) {
-            availableDomains = data.domains;
-            populateDomainSelect(data.domains);
-        } else {
-            domainSelect.innerHTML = '<option value="">No domains available</option>';
-            showToast('⚠️ Failed to load domains', 'error');
-        }
-    }
-
-    function populateDomainSelect(domains) {
-        domainSelect.innerHTML = '';
-        domains.forEach((domain, index) => {
-            const option = document.createElement('option');
-            option.value = domain;
-            option.textContent = `@${domain}`;
-            domainSelect.appendChild(option);
-        });
-
-        // Restore saved domain preference
-        const savedDomain = localStorage.getItem('tempmail_domain');
-        if (savedDomain && domains.includes(savedDomain)) {
-            domainSelect.value = savedDomain;
-        }
-    }
-
     // ===== Generate Email =====
     async function generateEmail() {
         btnGenerate.classList.add('loading');
         btnGenerate.disabled = true;
 
-        const selectedDomain = domainSelect.value;
-        if (selectedDomain) {
-            localStorage.setItem('tempmail_domain', selectedDomain);
-        }
-
-        const url = selectedDomain
-            ? `/api/generate?domain=${encodeURIComponent(selectedDomain)}`
-            : '/api/generate';
-
-        const data = await apiCall(url);
+        const data = await apiCall('/api/generate');
 
         btnGenerate.classList.remove('loading');
         btnGenerate.disabled = false;
@@ -146,14 +98,10 @@
         if (data.success) {
             currentEmail = data.email;
             currentRouteId = data.routeId;
-            currentDomain = data.domain;
-            currentCreatedAt = data.createdAt;
 
             // Save to localStorage
             localStorage.setItem('tempmail_current', currentEmail);
             localStorage.setItem('tempmail_routeId', currentRouteId || '');
-            localStorage.setItem('tempmail_domain', currentDomain || '');
-            localStorage.setItem('tempmail_createdAt', currentCreatedAt || '');
 
             // Update UI
             emailPlaceholder.style.display = 'none';
@@ -170,9 +118,6 @@
 
             // Show timer
             timerInfo.style.display = 'flex';
-
-            // Show expiry timer
-            startExpiryTimer();
 
             // Start auto-refresh
             startAutoRefresh();
@@ -200,12 +145,7 @@
             <span>Deleting...</span>
         `;
 
-        let deleteUrl = `/api/delete?routeId=${encodeURIComponent(currentRouteId)}`;
-        if (currentDomain) {
-            deleteUrl += `&domain=${encodeURIComponent(currentDomain)}`;
-        }
-
-        const data = await apiCall(deleteUrl);
+        const data = await apiCall(`/api/delete?routeId=${encodeURIComponent(currentRouteId)}`);
 
         if (data.success) {
             showToast('🗑️ Email deleted from Cloudflare', 'success');
@@ -221,14 +161,10 @@
     function resetToInitial() {
         currentEmail = null;
         currentRouteId = null;
-        currentDomain = null;
-        currentCreatedAt = null;
 
         // Clear localStorage
         localStorage.removeItem('tempmail_current');
         localStorage.removeItem('tempmail_routeId');
-        localStorage.removeItem('tempmail_domain');
-        localStorage.removeItem('tempmail_createdAt');
 
         // Reset UI
         emailPlaceholder.style.display = 'flex';
@@ -253,9 +189,6 @@
 
         // Hide timer
         timerInfo.style.display = 'none';
-
-        // Hide expiry timer
-        stopExpiryTimer();
 
         // Stop auto-refresh
         stopAutoRefresh();
@@ -443,68 +376,6 @@
         timerText.textContent = `Auto-refresh in ${countdown}s`;
     }
 
-    // ===== Expiry Timer =====
-    function startExpiryTimer() {
-        stopExpiryTimer();
-        expiryTimer.style.display = 'block';
-        updateExpiryDisplay();
-
-        expiryInterval = setInterval(() => {
-            const remaining = getExpiryRemaining();
-            if (remaining <= 0) {
-                // Email has expired, auto-delete
-                showToast('⏰ Email has expired and will be auto-deleted', 'info');
-                deleteEmail();
-                return;
-            }
-            updateExpiryDisplay();
-        }, 1000);
-    }
-
-    function stopExpiryTimer() {
-        if (expiryInterval) {
-            clearInterval(expiryInterval);
-            expiryInterval = null;
-        }
-        expiryTimer.style.display = 'none';
-    }
-
-    function getExpiryRemaining() {
-        if (!currentCreatedAt) return 0;
-        const created = new Date(currentCreatedAt);
-        const expiresAt = new Date(created.getTime() + EXPIRY_MINUTES * 60 * 1000);
-        const now = new Date();
-        return Math.max(0, expiresAt - now);
-    }
-
-    function updateExpiryDisplay() {
-        const remainingMs = getExpiryRemaining();
-        const totalMs = EXPIRY_MINUTES * 60 * 1000;
-        const remainingSec = Math.ceil(remainingMs / 1000);
-        const minutes = Math.floor(remainingSec / 60);
-        const seconds = remainingSec % 60;
-
-        expiryTimeText.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
-        // Update progress bar
-        const progress = (remainingMs / totalMs) * 100;
-        expiryProgressFill.style.width = `${progress}%`;
-
-        // Color transitions based on remaining time
-        if (progress <= 15) {
-            expiryProgressFill.style.background = 'var(--danger)';
-            expiryTimer.classList.add('expiry-critical');
-            expiryTimer.classList.remove('expiry-warning');
-        } else if (progress <= 40) {
-            expiryProgressFill.style.background = 'var(--warning)';
-            expiryTimer.classList.add('expiry-warning');
-            expiryTimer.classList.remove('expiry-critical');
-        } else {
-            expiryProgressFill.style.background = '';
-            expiryTimer.classList.remove('expiry-warning', 'expiry-critical');
-        }
-    }
-
     // ===== Manual Refresh =====
     async function manualRefresh() {
         btnRefresh.classList.add('spinning');
@@ -577,32 +448,12 @@
         if (e.key === 'Escape') closeModal();
     });
 
-    // ===== Initialize: Fetch Domains =====
-    fetchDomains();
-
     // ===== Restored Session =====
     const savedEmail = localStorage.getItem('tempmail_current');
     const savedRouteId = localStorage.getItem('tempmail_routeId');
-    const savedDomain = localStorage.getItem('tempmail_domain');
-    const savedCreatedAt = localStorage.getItem('tempmail_createdAt');
-
     if (savedEmail) {
         currentEmail = savedEmail;
         currentRouteId = savedRouteId;
-        currentDomain = savedDomain;
-        currentCreatedAt = savedCreatedAt;
-
-        // Check if the email has already expired
-        if (currentCreatedAt) {
-            const remaining = getExpiryRemaining();
-            if (remaining <= 0) {
-                // Email expired, clean up
-                showToast('⏰ Previous email has expired', 'info');
-                resetToInitial();
-                return;
-            }
-        }
-
         emailPlaceholder.style.display = 'none';
         emailAddress.style.display = 'flex';
         emailText.textContent = currentEmail;
@@ -611,7 +462,6 @@
         inboxSection.style.display = 'block';
         timerInfo.style.display = 'flex';
         startAutoRefresh();
-        startExpiryTimer();
         fetchInbox();
     }
 
