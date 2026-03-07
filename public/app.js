@@ -2,11 +2,26 @@
    TempMail — Frontend Application
    ======================================== */
 
+// ===== reCAPTCHA v2 Callback (must be global) =====
+function onRecaptchaSuccess(token) {
+    window.__recaptchaToken = token;
+    const btnGenerate = document.getElementById('btnGenerate');
+    const generateStep = document.getElementById('generateStep');
+    if (btnGenerate) {
+        btnGenerate.disabled = false;
+        btnGenerate.classList.add('ready');
+    }
+    if (generateStep) {
+        generateStep.classList.add('step-active');
+    }
+}
+
 (function () {
     'use strict';
 
     // ===== Constants =====
     const EXPIRY_MINUTES = 30;
+    const DAILY_LIMIT = 20;
 
     // ===== State =====
     let currentEmail = null;
@@ -14,7 +29,7 @@
     let currentCreatedAt = null;
     let countdownInterval = null;
     let expiryInterval = null;
-    let countdown = 30;
+    let countdown = 5;
 
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
@@ -44,11 +59,53 @@
     const expiryTimer = $('#expiryTimer');
     const expiryTimeText = $('#expiryTimeText');
     const expiryProgressFill = $('#expiryProgressFill');
+    const rateLimitBadge = $('#rateLimitBadge');
+    const recaptchaStep = $('#recaptchaStep');
+    const generateStep = $('#generateStep');
+
+    // ===== Rate Limiting =====
+    function getRateLimitData() {
+        const today = new Date().toISOString().split('T')[0];
+        const stored = localStorage.getItem('tempmail_rateLimit');
+        if (stored) {
+            try {
+                const data = JSON.parse(stored);
+                if (data.date === today) return data;
+            } catch (e) { }
+        }
+        return { date: today, count: 0 };
+    }
+
+    function incrementRateLimit() {
+        const data = getRateLimitData();
+        data.count++;
+        localStorage.setItem('tempmail_rateLimit', JSON.stringify(data));
+        updateRateLimitBadge();
+    }
+
+    function getRemainingGenerates() {
+        const data = getRateLimitData();
+        return Math.max(0, DAILY_LIMIT - data.count);
+    }
+
+    function updateRateLimitBadge() {
+        const remaining = getRemainingGenerates();
+        rateLimitBadge.textContent = `${remaining}/${DAILY_LIMIT}`;
+        if (remaining <= 3) {
+            rateLimitBadge.classList.add('rate-critical');
+            rateLimitBadge.classList.remove('rate-warning');
+        } else if (remaining <= 8) {
+            rateLimitBadge.classList.add('rate-warning');
+            rateLimitBadge.classList.remove('rate-critical');
+        } else {
+            rateLimitBadge.classList.remove('rate-warning', 'rate-critical');
+        }
+    }
 
     // ===== API Helpers =====
-    async function apiCall(endpoint) {
+    async function apiCall(endpoint, options = {}) {
         try {
-            const res = await fetch(endpoint);
+            const res = await fetch(endpoint, options);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return await res.json();
         } catch (err) {
@@ -93,10 +150,27 @@
 
     // ===== Generate Email =====
     async function generateEmail() {
+        // Check rate limit
+        if (getRemainingGenerates() <= 0) {
+            showToast('⚠️ Daily limit reached (20/day). Try again tomorrow!', 'error');
+            return;
+        }
+
+        // Check reCAPTCHA
+        const recaptchaToken = window.__recaptchaToken;
+        if (!recaptchaToken) {
+            showToast('⚠️ Please complete the reCAPTCHA first', 'error');
+            return;
+        }
+
         btnGenerate.classList.add('loading');
         btnGenerate.disabled = true;
 
-        const data = await apiCall('/api/generate');
+        const data = await apiCall('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recaptchaToken })
+        });
 
         btnGenerate.classList.remove('loading');
         btnGenerate.disabled = false;
@@ -105,6 +179,18 @@
             currentEmail = data.email;
             currentRouteId = data.routeId;
             currentCreatedAt = data.createdAt;
+
+            // Update rate limit
+            incrementRateLimit();
+
+            // Reset reCAPTCHA for next use
+            window.__recaptchaToken = null;
+            if (window.grecaptcha) {
+                grecaptcha.reset();
+            }
+            btnGenerate.disabled = true;
+            btnGenerate.classList.remove('ready');
+            generateStep.classList.remove('step-active');
 
             // Save to localStorage
             localStorage.setItem('tempmail_current', currentEmail);
@@ -136,6 +222,14 @@
             showToast('✅ Email created! Auto-deletes in 30 minutes', 'success');
         } else {
             showToast(`❌ ${data.details || data.error || 'Failed to generate email'}`, 'error');
+            // Reset reCAPTCHA on failure too
+            if (window.grecaptcha) {
+                grecaptcha.reset();
+            }
+            window.__recaptchaToken = null;
+            btnGenerate.disabled = true;
+            btnGenerate.classList.remove('ready');
+            generateStep.classList.remove('step-active');
         }
     }
 
@@ -145,27 +239,32 @@
         currentRouteId = null;
         currentCreatedAt = null;
 
-        // Clear localStorage
         localStorage.removeItem('tempmail_current');
         localStorage.removeItem('tempmail_routeId');
         localStorage.removeItem('tempmail_createdAt');
 
-        // Reset UI
         emailPlaceholder.style.display = 'flex';
         emailAddress.style.display = 'none';
         emailText.textContent = '';
         generatorCard.classList.remove('active');
 
-        // Hide inbox
         inboxSection.style.display = 'none';
         emailList.innerHTML = '';
         emailCount.textContent = '0 messages';
         inboxEmpty.style.display = 'block';
 
-        // Hide timers
         timerInfo.style.display = 'none';
         stopExpiryTimer();
         stopAutoRefresh();
+
+        // Reset reCAPTCHA
+        if (window.grecaptcha) {
+            grecaptcha.reset();
+        }
+        window.__recaptchaToken = null;
+        btnGenerate.disabled = true;
+        btnGenerate.classList.remove('ready');
+        generateStep.classList.remove('step-active');
     }
 
     // ===== Copy Email =====
@@ -357,7 +456,7 @@
         expiryInterval = setInterval(() => {
             const remaining = getExpiryRemaining();
             if (remaining <= 0) {
-                showToast('⏰ Email expired — generating new one...', 'info');
+                showToast('⏰ Email expired — generate new one', 'info');
                 resetToInitial();
                 return;
             }
@@ -477,6 +576,9 @@
         if (e.key === 'Escape') closeModal();
     });
 
+    // ===== Init =====
+    updateRateLimitBadge();
+
     // ===== Restored Session =====
     const savedEmail = localStorage.getItem('tempmail_current');
     const savedRouteId = localStorage.getItem('tempmail_routeId');
@@ -487,7 +589,6 @@
         currentRouteId = savedRouteId;
         currentCreatedAt = savedCreatedAt;
 
-        // Check if expired
         if (currentCreatedAt && getExpiryRemaining() <= 0) {
             showToast('⏰ Previous email has expired', 'info');
             resetToInitial();

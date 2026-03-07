@@ -83,7 +83,34 @@ module.exports = async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // Run cleanup of expired rules first (non-blocking for response)
+    // Verify reCAPTCHA v2 token
+    const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+    if (recaptchaSecret) {
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+        const recaptchaToken = body.recaptchaToken;
+
+        if (!recaptchaToken) {
+            return res.status(400).json({ success: false, error: 'Please complete the reCAPTCHA' });
+        }
+
+        try {
+            const verifyRes = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `secret=${recaptchaSecret}&response=${recaptchaToken}`,
+            });
+            const verifyData = await verifyRes.json();
+
+            if (!verifyData.success) {
+                console.warn('🤖 reCAPTCHA failed:', verifyData['error-codes']);
+                return res.status(403).json({ success: false, error: 'reCAPTCHA verification failed. Please try again.' });
+            }
+        } catch (e) {
+            console.error('reCAPTCHA verify error:', e.message);
+        }
+    }
+
+    // Run cleanup of expired rules
     await cleanupExpiredRules();
 
     const domain = process.env.EMAIL_DOMAIN || 'yourdomain.com';

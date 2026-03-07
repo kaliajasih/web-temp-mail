@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="icon"
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✉️</text></svg>">
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 
 <body>
@@ -76,16 +77,33 @@
       </div>
 
       <div class="generator-actions">
-        <div class="generator-buttons">
-          <button class="btn-generate" id="btnGenerate">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L2 9" />
-              <path d="M2 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 15" />
-            </svg>
-            <span>Generate Email</span>
-          </button>
+        <!-- Step 1: reCAPTCHA -->
+        <div class="recaptcha-step" id="recaptchaStep">
+          <div class="step-label">
+            <span class="step-number">1</span>
+            <span>Verify you're human</span>
+          </div>
+          <div class="g-recaptcha" id="recaptchaWidget" data-sitekey="SITE_KEY_PLACEHOLDER"
+            data-callback="onRecaptchaSuccess" data-theme="dark"></div>
+        </div>
 
+        <!-- Step 2: Generate -->
+        <div class="generate-step" id="generateStep">
+          <div class="step-label">
+            <span class="step-number">2</span>
+            <span>Get your email</span>
+          </div>
+          <div class="generator-buttons">
+            <button class="btn-generate" id="btnGenerate" disabled>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L2 9" />
+                <path d="M2 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 15" />
+              </svg>
+              <span>Generate Email</span>
+            </button>
+            <span class="rate-limit-badge" id="rateLimitBadge" title="Generate limit per day">20/20</span>
+          </div>
         </div>
         <div class="timer-info" id="timerInfo" style="display:none">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"

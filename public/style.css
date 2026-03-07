@@ -475,6 +475,105 @@ body {
 }
 
 /* ========================================
+   2-Step reCAPTCHA Flow
+   ======================================== */
+.recaptcha-step,
+.generate-step {
+  margin-bottom: 14px;
+}
+
+.step-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-secondary);
+  background: rgba(108, 92, 231, 0.12);
+  border: 1px solid rgba(108, 92, 231, 0.25);
+  border-radius: 50%;
+}
+
+.generate-step {
+  opacity: 0.5;
+  transition: opacity var(--transition-base);
+}
+
+.generate-step.step-active {
+  opacity: 1;
+}
+
+.btn-generate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-generate.ready {
+  animation: readyPulse 0.5s ease-out;
+}
+
+@keyframes readyPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.g-recaptcha {
+  margin-bottom: 4px;
+}
+
+/* ========================================
+   Rate Limit Badge
+   ======================================== */
+.rate-limit-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-secondary);
+  background: rgba(108, 92, 231, 0.1);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  border-radius: 20px;
+  white-space: nowrap;
+  transition: all var(--transition-base);
+}
+
+.rate-limit-badge.rate-warning {
+  color: var(--warning);
+  background: rgba(255, 217, 61, 0.1);
+  border-color: rgba(255, 217, 61, 0.25);
+}
+
+.rate-limit-badge.rate-critical {
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.25);
+}
+
+/* ========================================
    Expiry Timer
    ======================================== */
 .expiry-timer {
