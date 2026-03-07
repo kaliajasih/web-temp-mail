@@ -30,7 +30,7 @@ function onRecaptchaSuccess(token) {
     let countdownInterval = null;
     let expiryInterval = null;
     let countdown = 5;
-    let recaptchaSiteKey = '';
+    let recaptchaSiteKey = '6Lfe24IsAAAAAD1jTYEgKn5ikkxwjudP_22Eeg7z';
 
     // ===== DOM Elements =====
     const $ = (sel) => document.querySelector(sel);
